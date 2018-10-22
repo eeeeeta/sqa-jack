@@ -211,17 +211,17 @@ pub fn set_handler<F>(conn: &mut JackConnection<Deactivated>, handler: F) -> Jac
     let user_ptr = user_ptr as *mut libc::c_void;
     unsafe {
         let code = jack_set_process_callback(conn.handle, Some(process_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - process", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - process", code: code })? }
         let code = jack_set_thread_init_callback(conn.handle, Some(thread_init_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - thread_init", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - thread_init", code: code })? }
         let code = jack_set_buffer_size_callback(conn.handle, Some(buffer_size_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - buffer_size", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - buffer_size", code: code })? }
         let code = jack_set_sample_rate_callback(conn.handle, Some(sample_rate_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - sample_rate", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - sample_rate", code: code })? }
         let code = jack_set_xrun_callback(conn.handle, Some(xrun_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - xrun", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - xrun", code: code })? }
         let code = jack_set_client_registration_callback(conn.handle, Some(client_registration_callback::<F>), user_ptr);
-        if code != 0 { Err(ErrorKind::UnknownErrorCode("set_process_callback() - client_registration", code))? }
+        if code != 0 { Err(JackError::UnknownErrorCode { from: "set_process_callback() - client_registration", code: code })? }
         jack_on_info_shutdown(conn.handle, Some(info_shutdown_callback::<F>), user_ptr);
     }
     Ok(())

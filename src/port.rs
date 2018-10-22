@@ -1,5 +1,5 @@
 use libc;
-use errors::{ErrorKind, JackResult};
+use errors::{JackError, JackResult};
 use super::{JackPortFlags, JackPortPtr, str_to_cstr};
 use std::borrow::Cow;
 use std::ffi::CStr;
@@ -39,7 +39,7 @@ impl JackPort {
             jack_port_set_name(self.ptr, name.as_ptr())
         };
         if code != 0 {
-            Err(ErrorKind::ProgrammerError)?
+            Err(JackError::ProgrammerError)?
         }
         else {
             Ok(())
@@ -57,7 +57,7 @@ impl JackPort {
         unsafe {
             let ptr = jack_port_type(self.ptr);
             if ptr.is_null() {
-                Err(ErrorKind::InvalidPort)?
+                Err(JackError::InvalidPort)?
             }
             Ok(CStr::from_ptr(ptr).to_string_lossy())
         }
@@ -75,7 +75,7 @@ impl JackPort {
             jack_port_name(self.ptr)
         };
         if ptr.is_null() {
-            Err(ErrorKind::InvalidPort)?
+            Err(JackError::InvalidPort)?
         }
         else {
             Ok(ptr)

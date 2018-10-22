@@ -2,8 +2,9 @@
 extern crate bitflags;
 extern crate libc;
 extern crate jack_sys;
+extern crate failure;
 #[macro_use]
-extern crate error_chain;
+extern crate failure_derive;
 #[macro_use]
 extern crate lazy_static;
 
@@ -17,7 +18,7 @@ mod tests;
 
 use std::ffi::{CString, CStr};
 use std::marker::PhantomData;
-use errors::{ErrorKind, ChainErr};
+use errors::JackError;
 pub use errors::JackResult;
 pub use handler::{JackCallbackContext, JackControl, JackHandler, JackLoggingHandler, set_logging_handler};
 pub use port::JackPort;
@@ -124,7 +125,7 @@ pub struct JackConnection<T> {
 
 /// Helper function to convert Rust `&str`s to `CString`s.
 fn str_to_cstr(st: &str) -> JackResult<CString> {
-    Ok(CString::new(st).chain_err(|| ErrorKind::NulError)?)
+    Ok(CString::new(st).map_err(|_| JackError::NulError)?)
 }
 
 impl<T> JackConnection<T> {
@@ -163,19 +164,19 @@ impl<T> JackConnection<T> {
     /// - `UnknownErrorCode`
     pub fn set_buffer_size(&mut self, bufsize: jack_nframes_t) -> JackResult<()> {
         if bufsize.next_power_of_two() != bufsize {
-            Err(ErrorKind::NotPowerOfTwo)?
+            Err(JackError::NotPowerOfTwo)?
         }
         let code = unsafe {
             jack_set_buffer_size(self.handle, bufsize)
         };
         if code != 0 {
-            Err(ErrorKind::UnknownErrorCode("set_buffer_size()", code))?
+            Err(JackError::UnknownErrorCode { from: "set_buffer_size()", code: code })?
         }
         else {
             Ok(())
         }
     }
-    unsafe fn activate_or_deactivate<X>(self, activate: bool) -> Result<JackConnection<X>, (Self, errors::Error)> {
+    unsafe fn activate_or_deactivate<X>(self, activate: bool) -> Result<JackConnection<X>, (Self, JackError)> {
         let code = {
             if activate {
                 jack_activate(self.handle)
@@ -185,7 +186,7 @@ impl<T> JackConnection<T> {
             }
         };
         if code != 0 {
-            Err((self, ErrorKind::UnknownErrorCode("activate_or_deactivate()", code).into()))
+            Err((self, JackError::UnknownErrorCode { from: "activate_or_deactivate()", code }))
         }
         else {
             Ok(::std::mem::transmute::<JackConnection<T>, JackConnection<X>>(self))
@@ -193,10 +194,10 @@ impl<T> JackConnection<T> {
     }
     fn connect_or_disconnect_ports(&mut self, from: &JackPort, to: &JackPort, conn: bool) -> JackResult<()> {
         if from.get_type()? != to.get_type()? {
-            Err(ErrorKind::InvalidPortType)?;
+            Err(JackError::InvalidPortType)?;
         }
         if !from.get_flags().contains(PORT_IS_OUTPUT) || !to.get_flags().contains(PORT_IS_INPUT) {
-            Err(ErrorKind::InvalidPortFlags)?;
+            Err(JackError::InvalidPortFlags)?;
         }
         let code = unsafe {
             if conn {
@@ -207,9 +208,9 @@ impl<T> JackConnection<T> {
             }
         };
         match code {
-            47 => Ok(()),
+            libc::EEXIST => Ok(()),
             0 => Ok(()),
-            _ => Err(ErrorKind::UnknownErrorCode("connect_or_disconnect_ports()", code))?
+            _ => Err(JackError::UnknownErrorCode { from: "connect_or_disconnect_ports()", code: code })?
         }
     }
     /// Establish a connection between two ports.
@@ -262,10 +263,10 @@ impl<T> JackConnection<T> {
             jack_port_by_name(self.handle, name.as_ptr())
         };
         if ptr.is_null() {
-            Err(ErrorKind::PortNotFound)?
+            Err(JackError::PortNotFound)?
         }
         unsafe {
-            Ok((JackPort::from_ptr(ptr)))
+            Ok(JackPort::from_ptr(ptr))
         }
     }
     /// Get all (or a selection of) ports available in the JACK server.
@@ -300,7 +301,7 @@ impl<T> JackConnection<T> {
             jack_get_ports(self.handle, pf.as_ptr(), tf.as_ptr(), flags.bits())
         };
         if ptr.is_null() {
-            Err(ErrorKind::ProgrammerError)?
+            Err(JackError::ProgrammerError)?
         }
         let mut cstrs: Vec<&CStr> = vec![];
         loop {
@@ -356,7 +357,7 @@ impl<T> JackConnection<T> {
             jack_port_register(self.handle, name.as_ptr(), JACK_DEFAULT_AUDIO_TYPE.as_ptr() as *const i8, ty.bits(), 0)
         };
         if ptr.is_null() {
-            Err(ErrorKind::PortRegistrationFailed)?
+            Err(JackError::PortRegistrationFailed)?
         }
         else {
             unsafe {
@@ -375,16 +376,16 @@ impl<T> JackConnection<T> {
         let mine = unsafe {
             jack_port_is_mine(self.handle, port.as_ptr())
         };
-        if mine != 0 {
-            Err(ErrorKind::PortNotMine)?
+        if mine == 0 {
+           Err(JackError::PortNotMine)?
         }
         let code = unsafe {
             jack_port_unregister(self.handle, port.as_ptr())
         };
         match code {
             0 => Ok(()),
-            -1 => Err(ErrorKind::InvalidPort)?,
-            x @ _ => Err(ErrorKind::UnknownErrorCode("unregister_port()", x))?
+            -1 => Err(JackError::InvalidPort)?,
+            x @ _ => Err(JackError::UnknownErrorCode { from: "unregister_port()", code: x })?
         }
     }
 }
@@ -405,7 +406,7 @@ impl JackConnection<Deactivated> {
             jack_client_open(name.as_ptr(), opts, &mut status)
         };
         if client.is_null() {
-            Err(ErrorKind::JackOpenFailed(
+            Err(JackError::JackOpenFailed(
                 JackStatus::from_bits_truncate(status)
             ))?;
         }
@@ -438,7 +439,7 @@ impl JackConnection<Deactivated> {
     /// # Errors
     ///
     /// - `UnknownErrorCode`
-    pub fn activate(self) -> Result<JackConnection<Activated>, (Self, errors::Error)> {
+    pub fn activate(self) -> Result<JackConnection<Activated>, (Self, JackError)> {
         unsafe {
             self.activate_or_deactivate(true)
         }
@@ -457,7 +458,7 @@ impl JackConnection<Activated> {
     /// # Errors
     ///
     /// - `UnknownErrorCode`
-    pub fn deactivate(self) -> Result<JackConnection<Deactivated>, (Self, errors::Error)> {
+    pub fn deactivate(self) -> Result<JackConnection<Deactivated>, (Self, JackError)> {
         unsafe {
             self.activate_or_deactivate(false)
         }

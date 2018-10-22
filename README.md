@@ -1,8 +1,6 @@
 SQA JACK library
 ================
 
-# NOTE: This library has been assimilated into the [main SQA repo](https://github.com/eeeeeta/sqa) - this repo is **no longer updated**! Go to the new location for the latest code.
-
 [![Crates.io badge](https://img.shields.io/crates/v/sqa-jack.svg)](https://crates.io/crates/sqa-jack)
 [![Build Status](https://travis-ci.org/eeeeeta/sqa-jack.svg?branch=master)](https://travis-ci.org/eeeeeta/sqa-jack)
 [![Docs](https://docs.rs/sqa-jack/badge.svg)](https://docs.rs/sqa-jack)
@@ -14,4 +12,4 @@ Still in development, and subject to violent, earth-shattering change.
 These will be used in [SQA](https://github.com/eeeeeta/sqa) in "the future" (by the time you're reading this, they may already
 be used...), hence the title.
 
-Licensed under the [Unlicense](http://unlicense.org/).
+Licensed under CC0.
