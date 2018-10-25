@@ -84,6 +84,6 @@ impl JackPort {
     /// Get the JackPortFlags of the port.
     pub fn get_flags(&self) -> JackPortFlags {
         let flags = unsafe { jack_port_flags(self.ptr) };
-        JackPortFlags::from_bits_truncate(flags as u64)
+        JackPortFlags::from_bits_truncate(flags as ::libc::c_ulong)
     }
 }

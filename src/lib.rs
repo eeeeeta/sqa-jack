@@ -354,7 +354,7 @@ impl<T> JackConnection<T> {
     pub fn register_port(&mut self, name: &str, ty: JackPortFlags) -> JackResult<JackPort> {
         let ptr = unsafe {
             let name = str_to_cstr(name)?;
-            jack_port_register(self.handle, name.as_ptr(), JACK_DEFAULT_AUDIO_TYPE.as_ptr() as *const i8, ty.bits(), 0)
+            jack_port_register(self.handle, name.as_ptr(), JACK_DEFAULT_AUDIO_TYPE.as_ptr() as *const libc::c_char, ty.bits(), 0)
         };
         if ptr.is_null() {
             Err(JackError::PortRegistrationFailed)?
